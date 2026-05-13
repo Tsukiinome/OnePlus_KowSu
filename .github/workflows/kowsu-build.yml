@@ -1,0 +1,108 @@
+name: KowSu LKM Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Device codename (space, oscar, etc)'
+        required: true
+        default: 'space'
+      kmi_version:
+        description: 'KMI version (android15, android14, etc)'
+        required: true
+        default: 'android15'
+      build_type:
+        description: 'Build type'
+        required: true
+        type: choice
+        options:
+          - module_only
+          - full_build
+        default: 'full_build'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build KowSu for ${{ inputs.device }} (${{ inputs.kmi_version }})
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-musl
+          override: true
+      
+      - name: Setup Cargo cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Validate build configuration
+        run: |
+          echo "Device: ${{ inputs.device }}"
+          echo "KMI: ${{ inputs.kmi_version }}"
+          echo "Type: ${{ inputs.build_type }}"
+          
+          # Load and validate config
+          source configs/kowsu_build_config.sh
+          validate_kmi "${{ inputs.kmi_version }}" || exit 1
+          echo "✓ Configuration validated"
+      
+      - name: Build KernelSU module
+        if: inputs.build_type == 'module_only' || inputs.build_type == 'full_build'
+        run: |
+          echo "Building kernelsu.ko for ${{ inputs.kmi_version }}"
+          # Module build will be implemented
+          echo "✓ Module build placeholder"
+      
+      - name: Build ksuinit
+        if: inputs.build_type == 'full_build'
+        run: |
+          echo "Building ksuinit binary"
+          rustup target add aarch64-unknown-linux-musl
+          # Build will be implemented
+          echo "✓ ksuinit build placeholder"
+      
+      - name: Build ksud
+        if: inputs.build_type == 'full_build'
+        run: |
+          echo "Building ksud daemon"
+          # Build will be implemented
+          echo "✓ ksud build placeholder"
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: kowsu-build-${{ inputs.device }}-${{ inputs.kmi_version }}
+          path: |
+            out/kowsu/
+            !out/kowsu/logs/**
+          retention-days: 30
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-logs-${{ inputs.device }}-${{ inputs.kmi_version }}
+          path: out/kowsu/logs/
+          retention-days: 7
+      
+      - name: Build summary
+        if: success()
+        run: |
+          echo "## ✓ KowSu Build Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Device:** ${{ inputs.device }}" >> $GITHUB_STEP_SUMMARY
+          echo "**KMI:** ${{ inputs.kmi_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifacts:** Available in Actions" >> $GITHUB_STEP_SUMMARY
